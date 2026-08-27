@@ -1,0 +1,1 @@
+"""My Spends API package."""
