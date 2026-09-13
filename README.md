@@ -64,7 +64,11 @@ do pamięci. Konfiguracja backendu:
 RECEIPT_AI_ENABLED=true
 OLLAMA_BASE_URL=http://127.0.0.1:11434
 OLLAMA_MODEL=qwen3-vl:4b-instruct
+OLLAMA_CONTEXT_LENGTH=8192
 OLLAMA_TIMEOUT_SECONDS=300
+RECEIPT_IMAGE_MAX_DIMENSION=2560
+RECEIPT_IMAGE_WEBP_QUALITY=82
+RECEIPT_IMAGE_MAX_PIXELS=50000000
 RECEIPT_AUTO_COMPLETE_CONFIDENCE=0.70
 ```
 
@@ -164,10 +168,24 @@ Backend zapisuje zdjęcie i paragon ze statusem `processing`, po czym od razu zw
 Aktualny wynik można pobierać przez `GET /api/v1/receipts/{id}`. Frontend robi to automatycznie
 co 3 sekundy, aż status zmieni się na `completed`, `needs_review` albo `failed`.
 
+Przed wysłaniem do Supabase Storage backend obraca zdjęcie zgodnie z EXIF, ogranicza dłuższy
+bok domyślnie do 2560 px i zapisuje je jako WebP z jakością 82. Do Storage i modelu trafia już
+wersja skompresowana bez metadanych EXIF; limity można zmienić przez zmienne
+`RECEIPT_IMAGE_MAX_DIMENSION` i `RECEIPT_IMAGE_WEBP_QUALITY`.
+
 Model tworzy paragon, pozycje,
 produkty kanoniczne i aliasy nazw. Przykładowo `MLEKO ŁACIATE BUT. 1` pozostaje nazwą surową,
 a jego produkt kanoniczny może otrzymać nazwę `mleko`. Gdy inny paragon zawiera kolejny wariant
 tej nazwy, alias wskazuje ten sam produkt.
+
+Rabaty umieszczone bezpośrednio pod produktem (`RABAT`, `OPUST`, wartość ujemna) są przypisywane
+do poprzedniej pozycji. Pozycja przechowuje cenę przed rabatem, wartość rabatu i cenę końcową;
+sumy kategorii, produktów oraz paragonu używają ceny końcowej.
+
+Kaucje za puszki i butelki są przechowywane oddzielnie od produktów. `subtotal_grosze` oznacza
+wartość produktów z wiersza `SUMA PLN`, `deposit_total_grosze` sumę kaucji, a `total_grosze`
+faktyczną kwotę `DO ZAPŁATY`. Każdy wiersz kaucji zachowuje liczbę opakowań, stawkę jednostkową
+i łączną wartość, np. `2 × 0,50 zł = 1,00 zł`.
 
 Model wybiera kategorię wyłącznie spośród kategorii dostępnych w bazie. Kategorię produktu
 można później zmienić; zmiana aktualizuje również zapisane pozycje tego produktu. Status

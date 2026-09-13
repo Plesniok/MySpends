@@ -1,8 +1,6 @@
 import logging
-import mimetypes
 import uuid
 from datetime import datetime
-from pathlib import Path
 from typing import Annotated
 from uuid import UUID
 
@@ -32,6 +30,7 @@ from app.schemas.receipt import (
     SignedImageUrl,
 )
 from app.services.receipt_ai import ReceiptAIError, ReceiptExtractor, get_receipt_extractor
+from app.services.receipt_image import ReceiptImageError, prepare_receipt_image
 from app.services.receipt_processing import process_receipt_image
 from app.services.supabase import SupabaseGateway, get_supabase_gateway
 
@@ -91,7 +90,7 @@ def _process_receipt_in_background(
 def _get_owned_receipt(db: Session, receipt_id: UUID, owner_id: UUID) -> Receipt:
     receipt = db.scalar(
         select(Receipt)
-        .options(selectinload(Receipt.items))
+        .options(selectinload(Receipt.items), selectinload(Receipt.deposits))
         .execution_options(populate_existing=True)
         .where(Receipt.id == receipt_id, Receipt.owner_id == owner_id)
     )
@@ -109,7 +108,7 @@ def list_receipts(
 ) -> list[Receipt]:
     query = (
         select(Receipt)
-        .options(selectinload(Receipt.items))
+        .options(selectinload(Receipt.items), selectinload(Receipt.deposits))
         .where(Receipt.owner_id == current_user.id)
         .order_by(Receipt.purchased_at.desc().nullslast(), Receipt.created_at.desc())
         .offset(offset)
@@ -160,10 +159,22 @@ def upload_receipt(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="File too large"
         )
 
+    try:
+        prepared_image = prepare_receipt_image(
+            contents,
+            max_dimension=settings.receipt_image_max_dimension,
+            webp_quality=settings.receipt_image_webp_quality,
+            max_pixels=settings.receipt_image_max_pixels,
+        )
+    except ReceiptImageError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
+
+    contents = prepared_image.data
+    content_type = prepared_image.content_type
     receipt_id = uuid.uuid4()
-    extension = Path(file.filename or "").suffix.lower()
-    if not extension or len(extension) > 6:
-        extension = mimetypes.guess_extension(content_type) or ".img"
+    extension = prepared_image.extension
     image_path = f"{current_user.id}/{receipt_id}/{uuid.uuid4().hex}{extension}"
 
     try:

@@ -7,6 +7,7 @@ import {
   LoaderCircle,
   MapPin,
   PackageOpen,
+  Recycle,
   ReceiptText,
   ScanLine,
 } from "lucide-react";
@@ -54,6 +55,10 @@ export function ReceiptDetail({ receipt, categories, onBack }: ReceiptDetailProp
   }
 
   const status = statusLabels[receipt.status];
+  const totalDiscountGrosze = receipt.items.reduce(
+    (sum, item) => sum + (item.discount_grosze || 0),
+    0,
+  );
 
   return (
     <article className="receipt-detail panel">
@@ -75,6 +80,14 @@ export function ReceiptDetail({ receipt, categories, onBack }: ReceiptDetailProp
         <div className="detail-total">
           <span>Razem</span>
           <strong>{formatMoney(receipt.total_grosze, receipt.currency)}</strong>
+          {totalDiscountGrosze > 0 && (
+            <small>Rabaty −{formatMoney(totalDiscountGrosze, receipt.currency)}</small>
+          )}
+          {receipt.deposit_total_grosze > 0 && (
+            <small className="deposit-total-note">
+              Kaucja +{formatMoney(receipt.deposit_total_grosze, receipt.currency)}
+            </small>
+          )}
         </div>
       </header>
 
@@ -106,7 +119,15 @@ export function ReceiptDetail({ receipt, categories, onBack }: ReceiptDetailProp
                       </div>
                       <span>{formatQuantity(item.quantity, item.unit)}</span>
                       <span>{formatMoney(item.unit_price_grosze, receipt.currency)}</span>
-                      <strong>{formatMoney(item.total_price_grosze, receipt.currency)}</strong>
+                      <div className="item-price">
+                        {item.discount_grosze > 0 && item.original_total_price_grosze !== null && (
+                          <span>{formatMoney(item.original_total_price_grosze, receipt.currency)}</span>
+                        )}
+                        <strong>{formatMoney(item.total_price_grosze, receipt.currency)}</strong>
+                        {item.discount_grosze > 0 && (
+                          <small>Rabat −{formatMoney(item.discount_grosze, receipt.currency)}</small>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -119,7 +140,15 @@ export function ReceiptDetail({ receipt, categories, onBack }: ReceiptDetailProp
                     <div className="mobile-item-card" key={item.id}>
                       <div className="mobile-item-main">
                         <div><strong>{item.normalized_name || item.raw_name}</strong><span>{item.raw_name}</span></div>
-                        <strong>{formatMoney(item.total_price_grosze, receipt.currency)}</strong>
+                        <div className="mobile-item-price">
+                          {item.discount_grosze > 0 && item.original_total_price_grosze !== null && (
+                            <span>{formatMoney(item.original_total_price_grosze, receipt.currency)}</span>
+                          )}
+                          <strong>{formatMoney(item.total_price_grosze, receipt.currency)}</strong>
+                          {item.discount_grosze > 0 && (
+                            <small>−{formatMoney(item.discount_grosze, receipt.currency)}</small>
+                          )}
+                        </div>
                       </div>
                       <div className="mobile-item-meta">
                         <span>{formatQuantity(item.quantity, item.unit)} × {formatMoney(item.unit_price_grosze, receipt.currency)}</span>
@@ -130,6 +159,21 @@ export function ReceiptDetail({ receipt, categories, onBack }: ReceiptDetailProp
                 })}
               </div>
             </>
+          )}
+
+          {receipt.deposit_total_grosze > 0 && (
+            <div className="deposit-card">
+              <span className="deposit-icon"><Recycle size={18} /></span>
+              <div className="deposit-content">
+                <strong>Kaucja zwrotna</strong>
+                {receipt.deposits.length > 0 ? receipt.deposits.map((deposit) => (
+                  <span key={deposit.id}>
+                    {deposit.raw_name}: {formatQuantity(deposit.quantity, "szt")} × {formatMoney(deposit.unit_amount_grosze, receipt.currency)}
+                  </span>
+                )) : <span>Opakowania zwrotne</span>}
+              </div>
+              <strong>+{formatMoney(receipt.deposit_total_grosze, receipt.currency)}</strong>
+            </div>
           )}
         </section>
 

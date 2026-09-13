@@ -2,7 +2,7 @@ from functools import lru_cache
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     dev_user_id: UUID = UUID("00000000-0000-0000-0000-000000000001")
 
     max_upload_bytes: int = 10 * 1024 * 1024
+    receipt_image_max_dimension: int = Field(default=2560, ge=1200, le=6000)
+    receipt_image_webp_quality: int = Field(default=82, ge=60, le=95)
+    receipt_image_max_pixels: int = Field(default=50_000_000, ge=1_000_000)
     signed_url_ttl_seconds: int = 15 * 60
     cors_origins: Annotated[list[str], NoDecode] = [
         "http://localhost:5173",
@@ -40,6 +43,7 @@ class Settings(BaseSettings):
     receipt_ai_enabled: bool = True
     ollama_base_url: str = "http://127.0.0.1:11434"
     ollama_model: str = "qwen3-vl:4b-instruct"
+    ollama_context_length: int = 8192
     ollama_timeout_seconds: float = 300
     receipt_auto_complete_confidence: float = 0.70
 
